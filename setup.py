@@ -50,6 +50,7 @@ pyoptipng_module = Extension('pyoptipng/_pyoptipng',
                                    os.path.join(os.path.dirname(os.path.abspath(__file__)), 'optipng', 'src', 'gifread'),
                                    os.path.join(os.path.dirname(os.path.abspath(__file__)), 'optipng', 'src', 'pnmio'),
                                    os.path.join(os.path.dirname(os.path.abspath(__file__)), 'optipng', 'src', 'minitiff'),
+                                   os.path.join(os.path.dirname(os.path.abspath(__file__)), 'optipng', 'src', 'libpng'),
                                 ])
 
 if __name__ == '__main__':
