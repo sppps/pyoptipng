@@ -1,1 +1,1 @@
-from _pyoptipng import compress_png
+from _pyoptipng import compress_png, advpng
