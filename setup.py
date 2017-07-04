@@ -107,6 +107,7 @@ pyoptipng_module = Extension('pyoptipng/_pyoptipng',
                                   ('HAVE_SNPRINTF', None),
                                   ('HAVE_VSNPRINTF', None),
                                   ('USE_ERROR_SILENT', None),
+                                  ('HAVE_GETOPT', None),
                                 ])
 
 if __name__ == '__main__':
