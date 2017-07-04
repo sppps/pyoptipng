@@ -731,28 +731,13 @@ my_opng_optimize(Stream* input, Stream* output)
             }
             else
             {
-            //     /* Copy the input PNG datastream to the output. */
-            //     infile =
-            //         fopen((new_outfile ? infile_name_local : bakfile_name), "rb");
-            //     if (infile == NULL)
-            //         Throw "Can't reopen the input file";
-            //     Try
-            //     {
-            //         if (process.in_datastream_offset > 0 &&
-            //             osys_fseeko(infile, process.in_datastream_offset,
-            //                          SEEK_SET) != 0)
-            //             Throw "Can't reposition the input file";
-            //         process.best_idat_size = process.in_idat_size;
-            //         opng_copy_file(infile, outfile);
-            //     }
-            //     Catch (err_msg)
-            //     {
-            //         OPNG_ENSURE(err_msg != NULL,
-            //                     "Mysterious error in opng_copy_file");
-            //     }
-            //     fclose(infile);  /* finally */
-            //     if (err_msg != NULL)
-            //         Throw err_msg;  /* rethrow */
+                output->data = realloc(output->data, input->size);
+                output->size = input->size;
+                output->pos = input->size;
+                memcpy(output->data, input->data, output->size);
+
+                process.out_idat_size = process.in_idat_size;
+                process.out_file_size = process.in_file_size;
             }
         }
         Catch (err_msg)
@@ -786,7 +771,7 @@ my_opng_optimize(Stream* input, Stream* output)
     }
     opng_destroy_image_info();
 
-    return 0;
+    return result;
 }
 
 PyObject* compress_png(PyObject *self, PyObject *args)
@@ -835,7 +820,7 @@ PyObject* compress_png(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    PyObject* result = Py_BuildValue("s#", output_stream.data, output_stream.pos);
+    PyObject* result = Py_BuildValue("s#", output_stream.data, process.out_file_size);
     free(output_stream.data);
 
     return result;
