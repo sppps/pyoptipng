@@ -1,22 +1,43 @@
 #include <Python.h>
 
+#ifdef PYOPTIPNG_WITH_OPTIPNG
 PyObject* compress_png(PyObject *self, PyObject *args);
+#endif
+
+#ifdef PYOPTIPNG_WITH_ADVANCECOMP
 PyObject* advpng(PyObject *self, PyObject *args);
+#endif
+
+#ifdef PYOPTIPNG_WITH_MC_OPNG
+PyObject* mc_compress_png(PyObject *self, PyObject *args);
+#endif
 
 //-----------------------------------------------------------------------------
 static PyMethodDef pyoptipng_methods[] = {
+#ifdef PYOPTIPNG_WITH_OPTIPNG
     {
         "compress_png",
         compress_png,
         METH_VARARGS,
         "compress PNG file"
     },
+#endif
+#ifdef PYOPTIPNG_WITH_ADVANCECOMP
     {
         "advpng",
         advpng,
         METH_VARARGS,
         "recompress PNG file"
     },
+#endif
+#ifdef PYOPTIPNG_WITH_MC_OPNG
+    {
+        "mc_compress_png",
+        mc_compress_png,
+        METH_VARARGS,
+        "compress PNG file (multi-core version)"
+    },
+#endif
     {NULL, NULL, 0, NULL}
 };
 
