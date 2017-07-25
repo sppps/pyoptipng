@@ -8,6 +8,7 @@ from distutils.util import get_platform
 WITH_OPTIPNG = False
 WITH_ADVANCECOMP = False
 WITH_MC_OPNG = True
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 libraries = []
 all_sources = ['src/main.c']
@@ -60,15 +61,15 @@ if WITH_OPTIPNG:
       'optipng/src/pngxtern/pngxset.c',
       'optipng/src/pnmio/pnmin.c',
       'optipng/src/pnmio/pnmutil.c']
-    include_dirs += [os.path.join(os.path.dirname(os.path.abspath(__file__)), 'optipng', 'src', 'optipng'),
-                     os.path.join(os.path.dirname(os.path.abspath(__file__)), 'optipng', 'src', 'opngreduc'),
-                     os.path.join(os.path.dirname(os.path.abspath(__file__)), 'optipng', 'src', 'pngxtern'),
-                     os.path.join(os.path.dirname(os.path.abspath(__file__)), 'optipng', 'src', 'cexcept'),
-                     os.path.join(os.path.dirname(os.path.abspath(__file__)), 'optipng', 'src', 'zlib'),
-                     os.path.join(os.path.dirname(os.path.abspath(__file__)), 'optipng', 'src', 'gifread'),
-                     os.path.join(os.path.dirname(os.path.abspath(__file__)), 'optipng', 'src', 'pnmio'),
-                     os.path.join(os.path.dirname(os.path.abspath(__file__)), 'optipng', 'src', 'minitiff'),
-                     os.path.join(os.path.dirname(os.path.abspath(__file__)), 'optipng', 'src', 'libpng')
+    include_dirs += [os.path.join(BASE_DIR, 'optipng', 'src', 'optipng'),
+                     os.path.join(BASE_DIR, 'optipng', 'src', 'opngreduc'),
+                     os.path.join(BASE_DIR, 'optipng', 'src', 'pngxtern'),
+                     os.path.join(BASE_DIR, 'optipng', 'src', 'cexcept'),
+                     os.path.join(BASE_DIR, 'optipng', 'src', 'zlib'),
+                     os.path.join(BASE_DIR, 'optipng', 'src', 'gifread'),
+                     os.path.join(BASE_DIR, 'optipng', 'src', 'pnmio'),
+                     os.path.join(BASE_DIR, 'optipng', 'src', 'minitiff'),
+                     os.path.join(BASE_DIR, 'optipng', 'src', 'libpng')
                      ]
 
 if WITH_ADVANCECOMP:
@@ -112,7 +113,7 @@ if WITH_ADVANCECOMP:
       'advancecomp/libdeflate/zlib_compress.c',
       'advancecomp/libdeflate/adler32.c',
       'advancecomp/libdeflate/x86_cpu_features.c']
-    include_dirs += [os.path.join(os.path.dirname(os.path.abspath(__file__)), 'advancecomp')]
+    include_dirs += [os.path.join(BASE_DIR, 'advancecomp')]
 
 if WITH_MC_OPNG:
     defines += [
@@ -140,8 +141,9 @@ if WITH_MC_OPNG:
       'zlib/inftrees.c',
       ]
     include_dirs += [
-      os.path.join(os.path.dirname(os.path.abspath(__file__)), 'libpng'),
-      os.path.join(os.path.dirname(os.path.abspath(__file__)), 'zlib'),
+      os.path.join(BASE_DIR, 'src'),
+      os.path.join(BASE_DIR, 'libpng'),
+      os.path.join(BASE_DIR, 'zlib'),
       ]
 
 pyoptipng_module = Extension('pyoptipng/_pyoptipng',
@@ -155,25 +157,15 @@ pyoptipng_module = Extension('pyoptipng/_pyoptipng',
 class my_build_ext(build_ext.build_ext):
 
     def build_extensions(self):
-        for ext in self.extensions:
-            if ext.name == 'pyoptipng/_pyoptipng':
-                for src in reversed(ext.sources):
-                  if '.S' in src:
-                    print src
-                    del ext.sources[ext.sources.index(src)]
-                    cmd = ['gcc', '-DUSE_MMX', '-o', src.replace('.S', '.o'), '-c', src]
-                    subprocess.Popen(cmd).wait()
-                    ext.extra_objects.append(src.replace('.S', '.o'))
-                # makefile = open('./mozjpeg/simd/Makefile', 'r').read()
-
-                # NAFLAGS += re.findall(r'NAFLAGS =(.+)', makefile)[0].strip().split(' ')
-                # NASM = re.findall(r'NASM =(.+)', makefile)[0].strip()
-                # for src in reversed(ext.sources):
-                #   if '.asm' in src:
-                #     del ext.sources[ext.sources.index(src)]
-                #     cmd = [NASM]+NAFLAGS+['-o', src.replace('.asm', '.o'), src]
-                #     subprocess.Popen(cmd).wait()
-                #     ext.extra_objects.append(src.replace('.asm', '.o'))
+        # for ext in self.extensions:
+        #     if ext.name == 'pyoptipng/_pyoptipng':
+        #         for src in reversed(ext.sources):
+        #           if '.S' in src:
+        #             print src
+        #             del ext.sources[ext.sources.index(src)]
+        #             cmd = ['gcc', '-DUSE_MMX', '-o', src.replace('.S', '.o'), '-c', src]
+        #             subprocess.Popen(cmd).wait()
+        #             ext.extra_objects.append(src.replace('.S', '.o'))
         build_ext.build_ext.build_extensions(self)
 
 if __name__ == '__main__':

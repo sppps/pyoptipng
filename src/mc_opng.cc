@@ -140,6 +140,8 @@ static void* worker(void *arg)
     output.size = BUFGRAN;
     output.pos = 0;
 
+    printf("Thread %d on CPU %d\n", info->num, cpu);
+
     // unsigned char** image_rows = NULL;
     // int image_height = 0;
     

@@ -1,4 +1,7 @@
 *.pyc
+*.o
+*.lo
+*.dylib
 /dist/
 /build/
 /*.egg-info
