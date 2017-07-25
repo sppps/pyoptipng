@@ -6,7 +6,7 @@ from distutils.command import build_py, build_ext, clean
 from distutils.util import get_platform
 
 WITH_OPTIPNG = False
-WITH_ADVANCECOMP = False
+WITH_ADVANCECOMP = True
 WITH_MC_OPNG = True
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
