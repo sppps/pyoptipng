@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+import subprocess
 from setuptools import setup, Extension, Command
 from distutils.command import build_py, build_ext, clean
 from distutils.util import get_platform
@@ -114,9 +115,34 @@ if WITH_ADVANCECOMP:
     include_dirs += [os.path.join(os.path.dirname(os.path.abspath(__file__)), 'advancecomp')]
 
 if WITH_MC_OPNG:
-    defines += [('PYOPTIPNG_WITH_MC_OPNG', None)]
-    all_sources += ['src/mc_opng.cc']
-    libraries += ['png']
+    defines += [
+      ('PYOPTIPNG_WITH_MC_OPNG', None),
+      ]
+    all_sources += ['src/mc_opng.cc',
+      'libpng/png.c',
+      'libpng/pngread.c',
+      'libpng/pngwrite.c',
+      'libpng/pngerror.c',
+      'libpng/pngrutil.c',
+      'libpng/pngmem.c',
+      'libpng/pngwutil.c',
+      'libpng/pngtrans.c',
+      'libpng/pngrtran.c',
+      'libpng/pngwtran.c',
+      'libpng/pngwio.c',
+      'libpng/pngget.c',
+      'libpng/pngrio.c',
+      'libpng/pngset.c',
+      'zlib/inflate.c',
+      'zlib/zutil.c',
+      'zlib/inffast.c',
+      # 'zlib/contrib/inflate86/inffast.S',
+      'zlib/inftrees.c',
+      ]
+    include_dirs += [
+      os.path.join(os.path.dirname(os.path.abspath(__file__)), 'libpng'),
+      os.path.join(os.path.dirname(os.path.abspath(__file__)), 'zlib'),
+      ]
 
 pyoptipng_module = Extension('pyoptipng/_pyoptipng',
                                 libraries=libraries,
@@ -125,6 +151,30 @@ pyoptipng_module = Extension('pyoptipng/_pyoptipng',
                                 include_dirs=include_dirs,
                                 undef_macros=['NDEBUG'],
                                 define_macros=defines)
+
+class my_build_ext(build_ext.build_ext):
+
+    def build_extensions(self):
+        for ext in self.extensions:
+            if ext.name == 'pyoptipng/_pyoptipng':
+                for src in reversed(ext.sources):
+                  if '.S' in src:
+                    print src
+                    del ext.sources[ext.sources.index(src)]
+                    cmd = ['gcc', '-DUSE_MMX', '-o', src.replace('.S', '.o'), '-c', src]
+                    subprocess.Popen(cmd).wait()
+                    ext.extra_objects.append(src.replace('.S', '.o'))
+                # makefile = open('./mozjpeg/simd/Makefile', 'r').read()
+
+                # NAFLAGS += re.findall(r'NAFLAGS =(.+)', makefile)[0].strip().split(' ')
+                # NASM = re.findall(r'NASM =(.+)', makefile)[0].strip()
+                # for src in reversed(ext.sources):
+                #   if '.asm' in src:
+                #     del ext.sources[ext.sources.index(src)]
+                #     cmd = [NASM]+NAFLAGS+['-o', src.replace('.asm', '.o'), src]
+                #     subprocess.Popen(cmd).wait()
+                #     ext.extra_objects.append(src.replace('.asm', '.o'))
+        build_ext.build_ext.build_extensions(self)
 
 if __name__ == '__main__':
     setup(name='pyoptipng',
@@ -142,6 +192,7 @@ if __name__ == '__main__':
           author='Sergey S. Gogin',
           author_email='sppps@sppps.ru',
           license='MIT',
+          cmdclass={'build_ext': my_build_ext},
           packages=['pyoptipng'],
           ext_modules=[pyoptipng_module],
           include_package_data=True,

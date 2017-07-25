@@ -5,14 +5,16 @@
 #include <semaphore.h>
 #include <png.h>
 #include <zlib.h>
-#include <math.h>
 #include <sched.h>
+#include <cpuid.h>
 
 #include <queue>
 
-#include <cpuid.h>
-
 #define BUFGRAN     256*1024
+
+#ifdef __linux__
+#define USE_PTHREAD_AFFINITY
+#endif
 
 #define CPUID(INFO, LEAF, SUBLEAF) __cpuid_count(LEAF, SUBLEAF, INFO[0], INFO[1], INFO[2], INFO[3])
 
@@ -346,13 +348,15 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
     printf("Creating threads...");
     for(unsigned int i=0; i<num_cpu; i++)
     {
-        cpu_set_t cpuset;
         pthread_attr_t attr;
-
         pthread_attr_init(&attr);
+
+        #ifdef USE_PTHREAD_AFFINITY
+        cpu_set_t cpuset;
         CPU_ZERO(&cpuset);
         CPU_SET(i, &cpuset);
         pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpuset);
+        #endif
 
         threads[i] = (thread_info*)malloc(sizeof(thread_info));
         memset(threads[i], 0, sizeof(thread_info));
