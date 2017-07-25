@@ -7,6 +7,7 @@
 #include <zlib.h>
 #include <sched.h>
 #include <cpuid.h>
+#include <opngreduc.h>
 
 #include <queue>
 #include <list>
@@ -58,6 +59,11 @@ struct job_info {
     int row_bytes;
     png_colorp palette;
     int num_palette;
+    png_color_16p background_ptr;
+    png_bytep trans_alpha;
+    int num_trans;
+    png_color_16p trans_color_ptr;
+    png_color_16 trans_color;
 };
 
 struct thread_result {
@@ -74,7 +80,7 @@ struct optim_preset {
 
 #define MAX_OPTIM_LEVEL 8
 
-static const int ft[] =
+static const int filter_table[] =
 {
     PNG_FILTER_NONE,
     PNG_FILTER_SUB,
@@ -86,90 +92,60 @@ static const int ft[] =
 
 static optim_preset presets[MAX_OPTIM_LEVEL+1] = {
     /*  Optimization level: 0 */ { 
-        .m = { 8, -1 },
-        .c = { 9, -1 },
-        .s = { 1, -1 },
-        .f = { ft[0], ft[5], -1 }
+        .m = { -1 },
+        .c = { -1 },
+        .s = { -1 },
+        .f = { -1 }
         },
-    /*  Optimization level: 1 */ {
-        .m = { 8, -1 },
-        .c = { 9, -1 },
-        .s = { 1, -1 },
-        .f = { ft[0], ft[5], -1 }
+    /*  Optimization level: 1 */ { 
+        .m = { -1 },
+        .c = { -1 },
+        .s = { -1 },
+        .f = { -1 }
         },
     /*  Optimization level: 2 */ {
         .m = { 8, -1 },
         .c = { 9, -1 },
         .s = { 0, 1, 2, 3, -1 },
-        .f = { ft[0], ft[5], -1 }
+        .f = { 0, 5, -1 }
         },
     /*  Optimization level: 3 */ {
         .m = { 8, 9, -1 }, 
         .c = { 9, -1 },
         .s = { 0, 1, 2, 3, -1 },
-        .f = { ft[0], ft[5], -1 }
+        .f = { 0, 5, -1 }
         },
     /*  Optimization level: 4 */ {
         .m = { 8, -1 },
         .c = { 9, -1 },
         .s = { 0, 1, 2, 3, -1 },
-        .f = { ft[0], ft[1], ft[2], ft[3], ft[4], ft[5], -1 }
+        .f = { 0, 1, 2, 3, 4, 5, -1 }
         },
     /*  Optimization level: 5 */ {
         .m = { 8, 9, -1 },
         .c = { 9, -1 },
         .s = { 0, 1, 2, 3, -1 },
-        .f = { ft[0], ft[1], ft[2], ft[3], ft[4], ft[5], -1 }
+        .f = { 0, 1, 2, 3, 4, 5, -1 }
         },
     /*  Optimization level: 6 */ {
         .m = { 8, -1 },
         .c = { 5, 6, 7, 8, 9, -1 },
         .s = { 0, 1, 2, 3, -1 },
-        .f = { ft[0], ft[1], ft[2], ft[3], ft[4], ft[5], -1 }
+        .f = { 0, 1, 2, 3, 4, 5, -1 }
         },
     /*  Optimization level: 7 */ {
         .m = { 8, 9, -1 },
         .c = { 5, 6, 7, 8, 9, -1 },
         .s = { 0, 1, 2, 3, -1 },
-        .f = { ft[0], ft[1], ft[2], ft[3], ft[4], ft[5], -1 }
+        .f = { 0, 1, 2, 3, 4, 5, -1 }
         },
     /*  Optimization level: 8 */ {
         .m = { 1, 2, 3, 4, 5, 6, 7, 8, 9, -1 }, 
         .c = { 5, 6, 7, 8, 9, -1 },
         .s = { 0, 1, 2, 3, -1 },
-        .f = { ft[0], ft[1], ft[2], ft[3], ft[4], ft[5], -1 }
+        .f = { 0, 1, 2, 3, 4, 5, -1 }
         },
 };
-
-int mem_level_set[] = { 8, 9 };
-
-#define MEM_LEVEL_SET_SIZE 2
-
-int comp_level_set[] = { 9, 8, 7, 6, 5, 4, 3, 2, 1 };
-
-#define COMP_LEVEL_SET_SIZE 3
-
-int comp_strategy_set[] = { 0, 1, 2, 3 };
-
-#define COMP_STRATEGY_SET_SIZE 4
-
-int interlace_variants[] = {
-    PNG_INTERLACE_NONE,
-    PNG_INTERLACE_ADAM7,
-    };
-
-#define NUM_INTERLACE_VARIANTS  2
-
-int filter_variants[] = {
-    PNG_FILTER_NONE,
-    PNG_FILTER_SUB,
-    PNG_FILTER_UP,
-    PNG_FILTER_AVG,
-    PNG_FILTER_PAETH,
-    PNG_ALL_FILTERS,
-    };
-
-#define NUM_FILTER_VARIANTS 6
 
 std::queue<job_info*> jobs;
 pthread_mutex_t mutex;
@@ -244,12 +220,16 @@ static void* worker(void *arg)
             continue;
         }
 
+        png_set_compression_level(png_ptr, job->compression_level);
+        png_set_compression_mem_level(png_ptr, job->compression_mem_level);
+        png_set_compression_strategy(png_ptr, job->compression_strategy);
+        png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, filter_table[job->filter_type]);
+        // png_set_compression_window_bits(png_ptr, 15);
+
         output.pos = 0;
         png_set_write_fn(png_ptr, &output, custom_write_png, NULL);
 
-        png_set_IHDR(
-            png_ptr,
-            info_ptr,
+        png_set_IHDR(png_ptr, info_ptr,
             job->image_width,
             job->image_height,
             job->bit_depth,
@@ -259,38 +239,30 @@ static void* worker(void *arg)
             PNG_FILTER_TYPE_DEFAULT
             );
 
+        png_set_user_limits(png_ptr, PNG_UINT_31_MAX, PNG_UINT_31_MAX);
+        png_set_rows(png_ptr, info_ptr, job->image_rows);
+
         if (job->color_type == PNG_COLOR_TYPE_PALETTE) {
             png_set_PLTE(png_ptr, info_ptr, job->palette, 1<<job->bit_depth);
         }
 
-        png_set_filter(
-            png_ptr,
-            0,
-            job->filter_type
-            );
+        if (job->trans_alpha != NULL || job->trans_color_ptr != NULL)
+            png_set_tRNS(png_ptr, info_ptr,
+                job->trans_alpha, job->num_trans, job->trans_color_ptr);
 
-        png_set_compression_level(
-            png_ptr,
-            job->compression_level
-            );
+        if (job->background_ptr != NULL)
+            png_set_bKGD(png_ptr, info_ptr, job->background_ptr);
 
-        png_set_compression_mem_level(
-            png_ptr,
-            job->compression_mem_level
-            );
-
-        png_set_compression_strategy(
-            png_ptr,
-            job->compression_strategy
-            );
-
-        png_write_info(png_ptr, info_ptr);
-        png_write_image(png_ptr, job->image_rows);
-        png_write_end(png_ptr, NULL);
-
-        // printf("T%d:%d: %d\n", info->num, cpu, output.pos);
+        png_write_png(png_ptr, info_ptr, 0, NULL);
 
         png_destroy_write_struct(&png_ptr, &info_ptr);
+
+        printf("zc = %d, zm = %d, zs = %d, f = %d, size: %d\n",
+            job->compression_level,
+            job->compression_mem_level,
+            job->compression_strategy,
+            job->filter_type,
+            output.pos);
 
         if (result->data == NULL) {
             result->data = (unsigned char*)malloc(output.pos);
@@ -326,6 +298,12 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
     png_colorp palette = NULL;
     int num_palette;
     thread_info** threads = NULL;
+    png_color_16p background_ptr = NULL;
+    png_color_16 background;
+    png_bytep trans_alpha = NULL;
+    int num_trans;
+    png_color_16p trans_color_ptr = NULL;
+    png_color_16 trans_color;
 
     png.pos = 0;
 
@@ -363,20 +341,23 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
     }
 
     png_set_read_fn(png_ptr, &png, custom_read_png);
-    png_read_info(png_ptr, info_ptr);
+    png_read_png(png_ptr, info_ptr, 0, NULL);
+
+    int reduction = opng_reduce_image(png_ptr, info_ptr, OPNG_REDUCE_ALL & ~OPNG_REDUCE_METADATA);
 
     int image_width = png_get_image_width(png_ptr, info_ptr);
     int image_height = png_get_image_height(png_ptr, info_ptr);
     int color_type = png_get_color_type(png_ptr, info_ptr);
     int bit_depth = png_get_bit_depth(png_ptr, info_ptr);
     int interlace_type = png_get_interlace_type(png_ptr, info_ptr);
+    int compression_type = png_get_compression_type(png_ptr, info_ptr);
 
     printf("PNG info: %dx%d %d %d", image_width, image_height, color_type, bit_depth);
 
-    image_rows = (unsigned char**)malloc(sizeof(unsigned char*)*image_height);
-    for(unsigned int y=0; y < image_height; y++) {
-        image_rows[y] = (unsigned char*)malloc(png_get_rowbytes(png_ptr, info_ptr));
-    }
+    // image_rows = (unsigned char**)malloc(sizeof(unsigned char*)*image_height);
+    // for(unsigned int y=0; y < image_height; y++) {
+    //     image_rows[y] = (unsigned char*)malloc(png_get_rowbytes(png_ptr, info_ptr));
+    // }
 
     if (color_type == PNG_COLOR_TYPE_PALETTE) {
         palette = (png_colorp)png_malloc(png_ptr, PNG_MAX_PALETTE_LENGTH*sizeof (png_color));
@@ -384,7 +365,27 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
         printf("num_palette=%d\n", num_palette);
     }
 
-    png_read_image(png_ptr, image_rows);
+    if (png_get_tRNS(png_ptr, info_ptr, &trans_alpha, &num_trans, &trans_color_ptr))
+    {
+        /* Double copying (pointer + value) is necessary here
+         * due to an inconsistency in the libpng design.
+         */
+        if (trans_color_ptr != NULL)
+        {
+            trans_color = *trans_color_ptr;
+            trans_color_ptr = &trans_color;
+        }
+    }
+
+    if (png_get_bKGD(png_ptr, info_ptr, &background_ptr))
+    {
+        /* Same problem as in tRNS. */
+        background = *background_ptr;
+        background_ptr = &background;
+    }
+
+    image_rows = png_get_rows(png_ptr, info_ptr);
+    // png_read_image(png_ptr, image_rows);
 
     int num_cpu = sysconf(_SC_NPROCESSORS_ONLN);
     printf("CPU cores: %d\n", num_cpu);
@@ -408,7 +409,7 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
                     job->color_type = color_type;
                     job->interlace = interlace_type;
                     job->compression_mem_level = preset->m[m];
-                    job->compression_type = PNG_COMPRESSION_TYPE_DEFAULT;
+                    job->compression_type = compression_type;
                     job->compression_level = preset->c[c];
                     job->compression_strategy = preset->s[s];
                     job->filter_type = preset->f[f];
@@ -416,6 +417,11 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
                     job->row_bytes = png_get_rowbytes(png_ptr, info_ptr);
                     job->palette = palette;
                     job->num_palette = num_palette;
+                    job->background_ptr = background_ptr;
+                    job->trans_alpha = trans_alpha;
+                    job->num_trans = num_trans;
+                    job->trans_color_ptr = trans_color_ptr;
+                    job->trans_color = trans_color;
                     jobs.push(job);
                 }
             }
@@ -472,11 +478,11 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
     free(best_result->data);
     free(best_result);
 
-    for(unsigned int y=0; y<image_height; y++)
-    {
-        free(image_rows[y]);
-    }
-    free(image_rows);
+    // for(unsigned int y=0; y<image_height; y++)
+    // {
+    //     free(image_rows[y]);
+    // }
+    // free(image_rows);
     // if (palette) {
     //     png_free(png_ptr, palette);
     // }

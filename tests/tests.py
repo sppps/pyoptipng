@@ -16,7 +16,7 @@ FILE = 'test'
 
 with open(FILE+'.png', 'rb') as png:
     with open(FILE+'_out.png', 'wb+') as out:
-        out.write(pyoptipng.mc_compress_png(png.read(), 3))
+        out.write(pyoptipng.mc_compress_png(png.read(), 4))
 
 # with open('bananapixifactory.png', 'rb') as png:
 #     with open('bananapixifactory_out.png', 'wb+') as out:

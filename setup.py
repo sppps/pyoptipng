@@ -137,13 +137,17 @@ if WITH_MC_OPNG:
       'zlib/inflate.c',
       'zlib/zutil.c',
       'zlib/inffast.c',
-      # 'zlib/contrib/inflate86/inffast.S',
       'zlib/inftrees.c',
       ]
+    if not WITH_OPTIPNG:
+      all_sources += [
+        'optipng/src/opngreduc/opngreduc.c',
+        ]
     include_dirs += [
       os.path.join(BASE_DIR, 'src'),
       os.path.join(BASE_DIR, 'libpng'),
       os.path.join(BASE_DIR, 'zlib'),
+      os.path.join(BASE_DIR, 'optipng', 'src', 'opngreduc'),
       ]
 
 pyoptipng_module = Extension('pyoptipng/_pyoptipng',
