@@ -12,7 +12,7 @@ import os
 #         except Exception as e:
 #             print e
 
-FILE = 'mbuntu-14'
+FILE = 'test'
 
 with open(FILE+'.png', 'rb') as png:
     with open(FILE+'_out.png', 'wb+') as out:

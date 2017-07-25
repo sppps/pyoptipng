@@ -9,6 +9,7 @@
 #include <cpuid.h>
 
 #include <queue>
+#include <list>
 
 #define BUFGRAN     256*1024
 
@@ -52,6 +53,7 @@ struct job_info {
     int filter_type;
     int compression_level;
     int compression_strategy;
+    int compression_mem_level;
     unsigned char** image_rows;
     int row_bytes;
     png_colorp palette;
@@ -63,19 +65,93 @@ struct thread_result {
     unsigned long size;
 };
 
-int comp_level_set[] = { 9, 8, 7, 6, 5, 4, 3 };
-
-#define COMP_LEVEL_SET_SIZE 2
-
-int comp_strategy_set[] = {
-    Z_DEFAULT_STRATEGY,
-    Z_FILTERED,
-    Z_HUFFMAN_ONLY,
-    Z_RLE,
-    Z_FIXED,
+struct optim_preset {
+    const int m[10];
+    const int c[10];
+    const int s[5];
+    const int f[7];
 };
 
-#define COMP_STRATEGY_SET_SIZE 3
+#define MAX_OPTIM_LEVEL 8
+
+static const int ft[] =
+{
+    PNG_FILTER_NONE,
+    PNG_FILTER_SUB,
+    PNG_FILTER_UP,
+    PNG_FILTER_AVG,
+    PNG_FILTER_PAETH,
+    PNG_ALL_FILTERS
+};
+
+static optim_preset presets[MAX_OPTIM_LEVEL+1] = {
+    /*  Optimization level: 0 */ { 
+        .m = { 8, -1 },
+        .c = { 9, -1 },
+        .s = { 1, -1 },
+        .f = { ft[0], ft[5], -1 }
+        },
+    /*  Optimization level: 1 */ {
+        .m = { 8, -1 },
+        .c = { 9, -1 },
+        .s = { 1, -1 },
+        .f = { ft[0], ft[5], -1 }
+        },
+    /*  Optimization level: 2 */ {
+        .m = { 8, -1 },
+        .c = { 9, -1 },
+        .s = { 0, 1, 2, 3, -1 },
+        .f = { ft[0], ft[5], -1 }
+        },
+    /*  Optimization level: 3 */ {
+        .m = { 8, 9, -1 }, 
+        .c = { 9, -1 },
+        .s = { 0, 1, 2, 3, -1 },
+        .f = { ft[0], ft[5], -1 }
+        },
+    /*  Optimization level: 4 */ {
+        .m = { 8, -1 },
+        .c = { 9, -1 },
+        .s = { 0, 1, 2, 3, -1 },
+        .f = { ft[0], ft[1], ft[2], ft[3], ft[4], ft[5], -1 }
+        },
+    /*  Optimization level: 5 */ {
+        .m = { 8, 9, -1 },
+        .c = { 9, -1 },
+        .s = { 0, 1, 2, 3, -1 },
+        .f = { ft[0], ft[1], ft[2], ft[3], ft[4], ft[5], -1 }
+        },
+    /*  Optimization level: 6 */ {
+        .m = { 8, -1 },
+        .c = { 5, 6, 7, 8, 9, -1 },
+        .s = { 0, 1, 2, 3, -1 },
+        .f = { ft[0], ft[1], ft[2], ft[3], ft[4], ft[5], -1 }
+        },
+    /*  Optimization level: 7 */ {
+        .m = { 8, 9, -1 },
+        .c = { 5, 6, 7, 8, 9, -1 },
+        .s = { 0, 1, 2, 3, -1 },
+        .f = { ft[0], ft[1], ft[2], ft[3], ft[4], ft[5], -1 }
+        },
+    /*  Optimization level: 8 */ {
+        .m = { 1, 2, 3, 4, 5, 6, 7, 8, 9, -1 }, 
+        .c = { 5, 6, 7, 8, 9, -1 },
+        .s = { 0, 1, 2, 3, -1 },
+        .f = { ft[0], ft[1], ft[2], ft[3], ft[4], ft[5], -1 }
+        },
+};
+
+int mem_level_set[] = { 8, 9 };
+
+#define MEM_LEVEL_SET_SIZE 2
+
+int comp_level_set[] = { 9, 8, 7, 6, 5, 4, 3, 2, 1 };
+
+#define COMP_LEVEL_SET_SIZE 3
+
+int comp_strategy_set[] = { 0, 1, 2, 3 };
+
+#define COMP_STRATEGY_SET_SIZE 4
 
 int interlace_variants[] = {
     PNG_INTERLACE_NONE,
@@ -85,21 +161,12 @@ int interlace_variants[] = {
 #define NUM_INTERLACE_VARIANTS  2
 
 int filter_variants[] = {
-    PNG_ALL_FILTERS,
+    PNG_FILTER_NONE,
     PNG_FILTER_SUB,
     PNG_FILTER_UP,
     PNG_FILTER_AVG,
     PNG_FILTER_PAETH,
-    PNG_FILTER_NONE,
-    PNG_FILTER_SUB | PNG_FILTER_UP,
-    PNG_FILTER_SUB | PNG_FILTER_AVG,
-    PNG_FILTER_SUB | PNG_FILTER_PAETH,
-    PNG_FILTER_UP | PNG_FILTER_AVG,
-    PNG_FILTER_UP | PNG_FILTER_PAETH,
-    PNG_FILTER_AVG | PNG_FILTER_PAETH,
-    PNG_FILTER_SUB | PNG_FILTER_UP | PNG_FILTER_AVG,
-    PNG_FILTER_SUB | PNG_FILTER_UP | PNG_FILTER_PAETH,
-    PNG_FILTER_SUB | PNG_FILTER_AVG | PNG_FILTER_PAETH,
+    PNG_ALL_FILTERS,
     };
 
 #define NUM_FILTER_VARIANTS 6
@@ -207,6 +274,11 @@ static void* worker(void *arg)
             job->compression_level
             );
 
+        png_set_compression_mem_level(
+            png_ptr,
+            job->compression_mem_level
+            );
+
         png_set_compression_strategy(
             png_ptr,
             job->compression_strategy
@@ -297,6 +369,7 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
     int image_height = png_get_image_height(png_ptr, info_ptr);
     int color_type = png_get_color_type(png_ptr, info_ptr);
     int bit_depth = png_get_bit_depth(png_ptr, info_ptr);
+    int interlace_type = png_get_interlace_type(png_ptr, info_ptr);
 
     printf("PNG info: %dx%d %d %d", image_width, image_height, color_type, bit_depth);
 
@@ -319,21 +392,26 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
     pthread_mutex_init(&mutex, NULL);
 
     printf("Creating jobs...");
-    for(unsigned int i=0; i<NUM_INTERLACE_VARIANTS; i++) {
-        for(unsigned int f=0; f<NUM_FILTER_VARIANTS; f++) {
-            for(unsigned int cl=0; cl<COMP_LEVEL_SET_SIZE; cl++) {
-                for(unsigned int st=0; st<COMP_STRATEGY_SET_SIZE; st++) {
+
+    optim_preset* preset = &presets[optim_level];
+
+
+    for(unsigned int m=0; preset->m[m] != -1; m++) {
+        for(unsigned int f=0; preset->f[f] != -1; f++) {
+            for(unsigned int c=0; preset->c[c] != -1; c++) {
+                for(unsigned int s=0; preset->s[s] != -1; s++) {
                     job_info* job = (job_info*)malloc(sizeof(job_info));
                     memset(job, 0, sizeof(job_info));
                     job->image_width = image_width;
                     job->image_height = image_height;
                     job->bit_depth = bit_depth;
                     job->color_type = color_type;
-                    job->interlace = interlace_variants[i];
+                    job->interlace = interlace_type;
+                    job->compression_mem_level = preset->m[m];
                     job->compression_type = PNG_COMPRESSION_TYPE_DEFAULT;
-                    job->compression_level = comp_level_set[cl];
-                    job->compression_strategy = comp_strategy_set[st];
-                    job->filter_type = filter_variants[f];
+                    job->compression_level = preset->c[c];
+                    job->compression_strategy = preset->s[s];
+                    job->filter_type = preset->f[f];
                     job->image_rows = image_rows;
                     job->row_bytes = png_get_rowbytes(png_ptr, info_ptr);
                     job->palette = palette;
