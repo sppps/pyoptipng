@@ -150,6 +150,13 @@ static optim_preset presets[MAX_OPTIM_LEVEL+1] = {
 std::queue<job_info*> jobs;
 pthread_mutex_t mutex;
 
+void my_error_fn(png_structp png_ptr, png_const_charp error_msg){
+    printf("PNG error: %s\n", error_msg);
+}
+void my_warning_fn(png_structp png_ptr, png_const_charp warning_msg){
+    printf("PNG warning: %s\n", warning_msg);
+}
+
 static void custom_read_png(png_structp png_ptr, unsigned char* buf, unsigned long size) {
     stream* png_stream = (stream*)png_get_io_ptr(png_ptr);
 
@@ -207,7 +214,7 @@ static void* worker(void *arg)
         // }
         pthread_mutex_unlock(&mutex);
 
-        png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+        png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, my_error_fn, my_warning_fn);
         if (!png_ptr) {
             free(job);
             continue;
@@ -318,7 +325,7 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, my_error_fn, my_warning_fn);
     if (!png_ptr)
     {
         PyErr_SetString(PyExc_ValueError, "png_create_read_struct() error");
