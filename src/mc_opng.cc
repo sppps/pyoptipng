@@ -264,7 +264,7 @@ static void* worker(void *arg)
             result->size = output.pos;
             memcpy(result->data, output.data, output.pos);
         } else {
-            if (output.pos < result->size) {
+            if (output.pos < result->size && output.pos > 0) {
                 result->data = (unsigned char*)realloc(result->data, output.pos);
                 result->size = output.pos;
                 memcpy(result->data, output.data, output.pos);
@@ -450,7 +450,7 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
         pthread_join(threads[i]->id, (void**)&result);
         free(threads[i]);
         if (best_result) {
-            if (result->size < best_result->size) {
+            if (result->size < best_result->size && result->size > 0) {
                 free(best_result->data);
                 free(best_result);
                 best_result = result;
@@ -459,7 +459,12 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
                 free(result);
             }
         } else {
-            best_result = result;
+            if (result->size > 0) {
+                best_result = result;
+            } else {
+                free(result->data);
+                free(result);
+            }
         }
     }
     free(threads);
