@@ -2,15 +2,17 @@
 import pyoptipng
 import os
 
-for dirname, dirnames, files in os.walk('./CrashTest'):
-    for f in files:
-        filepath = os.path.join(dirname, f)
-        print filepath
-        try:
-            with open(filepath, 'rb') as png:
-                pyoptipng.mc_compress_png(png.read(), 3)
-        except Exception as e:
-            print e
+while True:
+
+    for dirname, dirnames, files in os.walk('./CrashTest'):
+        for f in files:
+            filepath = os.path.join(dirname, f)
+            print filepath
+            try:
+                with open(filepath, 'rb') as png:
+                    pyoptipng.mc_compress_png(png.read(), 3)
+            except Exception as e:
+                print e
 
 # FILE = 'test'
 

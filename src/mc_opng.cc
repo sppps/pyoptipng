@@ -191,9 +191,6 @@ static void* worker(void *arg)
     output.pos = 0;
 
     printf("Thread %d on CPU %d\n", info->num, cpu);
-
-    // unsigned char** image_rows = NULL;
-    // int image_height = 0;
     
     while(1) {
         pthread_mutex_lock(&mutex);
@@ -203,15 +200,6 @@ static void* worker(void *arg)
             }
             job_info* job = jobs.front();
             jobs.pop();
-
-        // if (image_rows == NULL) {
-        //     image_height = job->image_height;
-        //     image_rows = (unsigned char**)malloc(sizeof()*job->image_height);
-        //     for(unsigned int y=0; y < job->image_height; y++) {
-        //         image_rows[y] = (unsigned char*)malloc(job->row_bytes);
-        //         memcpy(image_rows[y], job->image_rows[y], job->row_bytes);
-        //     }
-        // }
         pthread_mutex_unlock(&mutex);
 
         png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, my_error_fn, my_warning_fn);
@@ -286,11 +274,7 @@ static void* worker(void *arg)
         free(job);
     }
 
-    // for(unsigned int y=0; y<image_height; y++)
-    // {
-    //     free(image_rows[y]);
-    // }
-    // free(image_rows);
+    free(output.data);
 
     return result;
 }
@@ -397,8 +381,6 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
     int num_cpu = sysconf(_SC_NPROCESSORS_ONLN);
     printf("CPU cores: %d\n", num_cpu);
 
-    pthread_mutex_init(&mutex, NULL);
-
     printf("Creating jobs...");
 
     optim_preset* preset = &presets[optim_level];
@@ -437,6 +419,7 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
     printf("DONE. %d jobs created.\n", jobs.size());
 
     threads = (thread_info**)malloc(sizeof(thread_info*)*num_cpu);
+    pthread_mutex_init(&mutex, NULL);
 
     printf("Creating threads...");
     for(unsigned int i=0; i<num_cpu; i++)
@@ -455,6 +438,7 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
         memset(threads[i], 0, sizeof(thread_info));
         threads[i]->num = i;
         pthread_create(&(threads[i]->id), &attr, worker, threads[i]);
+        pthread_attr_destroy(&attr);
     }
     printf("DONE.\n");
 
@@ -467,9 +451,11 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
         free(threads[i]);
         if (best_result) {
             if (result->size < best_result->size) {
+                free(best_result->data);
                 free(best_result);
                 best_result = result;
             } else {
+                free(result->data);
                 free(result);
             }
         } else {
@@ -477,6 +463,7 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
         }
     }
     free(threads);
+    pthread_mutex_destroy(&mutex);
     printf("DONE.\n");
 
     printf("Best size: %d\n", best_result->size);
@@ -484,15 +471,6 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
     PyObject* result = Py_BuildValue("s#", best_result->data, best_result->size);
     free(best_result->data);
     free(best_result);
-
-    // for(unsigned int y=0; y<image_height; y++)
-    // {
-    //     free(image_rows[y]);
-    // }
-    // free(image_rows);
-    // if (palette) {
-    //     png_free(png_ptr, palette);
-    // }
 
     png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
 
