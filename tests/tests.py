@@ -4,7 +4,7 @@ import os
 
 while True:
 
-    for dirname, dirnames, files in os.walk('./CrashTest'):
+    for dirname, dirnames, files in os.walk('./png_check/'):
         for f in files:
             filepath = os.path.join(dirname, f)
             print filepath

@@ -335,7 +335,6 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
     png_read_png(png_ptr, info_ptr, 0, NULL);
 
     int reduction = opng_reduce_image(png_ptr, info_ptr, OPNG_REDUCE_ALL & ~OPNG_REDUCE_METADATA);
-
     int image_width = png_get_image_width(png_ptr, info_ptr);
     int image_height = png_get_image_height(png_ptr, info_ptr);
     int color_type = png_get_color_type(png_ptr, info_ptr);
@@ -345,11 +344,6 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
 
     printf("PNG info: %dx%d %d %d", image_width, image_height, color_type, bit_depth);
 
-    // image_rows = (unsigned char**)malloc(sizeof(unsigned char*)*image_height);
-    // for(unsigned int y=0; y < image_height; y++) {
-    //     image_rows[y] = (unsigned char*)malloc(png_get_rowbytes(png_ptr, info_ptr));
-    // }
-
     if (color_type == PNG_COLOR_TYPE_PALETTE) {
         palette = (png_colorp)png_malloc(png_ptr, PNG_MAX_PALETTE_LENGTH*sizeof (png_color));
         png_get_PLTE(png_ptr, info_ptr, &palette, &num_palette);
@@ -358,9 +352,6 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
 
     if (png_get_tRNS(png_ptr, info_ptr, &trans_alpha, &num_trans, &trans_color_ptr))
     {
-        /* Double copying (pointer + value) is necessary here
-         * due to an inconsistency in the libpng design.
-         */
         if (trans_color_ptr != NULL)
         {
             trans_color = *trans_color_ptr;
@@ -370,13 +361,11 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
 
     if (png_get_bKGD(png_ptr, info_ptr, &background_ptr))
     {
-        /* Same problem as in tRNS. */
         background = *background_ptr;
         background_ptr = &background;
     }
 
     image_rows = png_get_rows(png_ptr, info_ptr);
-    // png_read_image(png_ptr, image_rows);
 
     int num_cpu = sysconf(_SC_NPROCESSORS_ONLN);
     printf("CPU cores: %d\n", num_cpu);
