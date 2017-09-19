@@ -151,10 +151,10 @@ std::queue<job_info*> jobs;
 pthread_mutex_t mutex;
 
 void my_error_fn(png_structp png_ptr, png_const_charp error_msg){
-    printf("PNG error: %s\n", error_msg);
+    // printf("PNG error: %s\n", error_msg);
 }
 void my_warning_fn(png_structp png_ptr, png_const_charp warning_msg){
-    printf("PNG warning: %s\n", warning_msg);
+    // printf("PNG warning: %s\n", warning_msg);
 }
 
 static void custom_read_png(png_structp png_ptr, unsigned char* buf, unsigned long size) {
@@ -190,7 +190,7 @@ static void* worker(void *arg)
     output.size = BUFGRAN;
     output.pos = 0;
 
-    printf("Thread %d on CPU %d\n", info->num, cpu);
+    // printf("Thread %d on CPU %d\n", info->num, cpu);
     
     while(1) {
         pthread_mutex_lock(&mutex);
@@ -252,12 +252,12 @@ static void* worker(void *arg)
 
         png_destroy_write_struct(&png_ptr, &info_ptr);
 
-        printf("zc = %d, zm = %d, zs = %d, f = %d, size: %d\n",
-            job->compression_level,
-            job->compression_mem_level,
-            job->compression_strategy,
-            job->filter_type,
-            output.pos);
+        // printf("zc = %d, zm = %d, zs = %d, f = %d, size: %d\n",
+        //     job->compression_level,
+        //     job->compression_mem_level,
+        //     job->compression_strategy,
+        //     job->filter_type,
+        //     output.pos);
 
         if (result->data == NULL) {
             result->data = (unsigned char*)malloc(output.pos);
@@ -342,12 +342,12 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
     int interlace_type = png_get_interlace_type(png_ptr, info_ptr);
     int compression_type = png_get_compression_type(png_ptr, info_ptr);
 
-    printf("PNG info: %dx%d %d %d", image_width, image_height, color_type, bit_depth);
+    // printf("PNG info: %dx%d %d %d", image_width, image_height, color_type, bit_depth);
 
     if (color_type == PNG_COLOR_TYPE_PALETTE) {
         palette = (png_colorp)png_malloc(png_ptr, PNG_MAX_PALETTE_LENGTH*sizeof (png_color));
         png_get_PLTE(png_ptr, info_ptr, &palette, &num_palette);
-        printf("num_palette=%d\n", num_palette);
+        // printf("num_palette=%d\n", num_palette);
     }
 
     if (png_get_tRNS(png_ptr, info_ptr, &trans_alpha, &num_trans, &trans_color_ptr))
@@ -368,9 +368,9 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
     image_rows = png_get_rows(png_ptr, info_ptr);
 
     int num_cpu = sysconf(_SC_NPROCESSORS_ONLN);
-    printf("CPU cores: %d\n", num_cpu);
+    // printf("CPU cores: %d\n", num_cpu);
 
-    printf("Creating jobs...");
+    // printf("Creating jobs...");
 
     optim_preset* preset = &presets[optim_level];
 
@@ -405,12 +405,12 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
             }
         }
     }
-    printf("DONE. %d jobs created.\n", jobs.size());
+    // printf("DONE. %d jobs created.\n", jobs.size());
 
     threads = (thread_info**)malloc(sizeof(thread_info*)*num_cpu);
     pthread_mutex_init(&mutex, NULL);
 
-    printf("Creating threads...");
+    // printf("Creating threads...");
     for(unsigned int i=0; i<num_cpu; i++)
     {
         pthread_attr_t attr;
@@ -429,9 +429,9 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
         pthread_create(&(threads[i]->id), &attr, worker, threads[i]);
         pthread_attr_destroy(&attr);
     }
-    printf("DONE.\n");
+    // printf("DONE.\n");
 
-    printf("Waiting for threads...");
+    // printf("Waiting for threads...");
     thread_result* best_result = NULL;
     for(unsigned int i=0; i<num_cpu; i++)
     {
@@ -458,9 +458,9 @@ PyObject* mc_compress_png(PyObject *self, PyObject *args)
     }
     free(threads);
     pthread_mutex_destroy(&mutex);
-    printf("DONE.\n");
+    // printf("DONE.\n");
 
-    printf("Best size: %d\n", best_result->size);
+    // printf("Best size: %d\n", best_result->size);
 
     PyObject* result = Py_BuildValue("s#", best_result->data, best_result->size);
     free(best_result->data);

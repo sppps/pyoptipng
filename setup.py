@@ -155,7 +155,6 @@ pyoptipng_module = Extension('pyoptipng/_pyoptipng',
                                 extra_compile_args = ["-O3"],
                                 sources=all_sources,
                                 include_dirs=include_dirs,
-                                undef_macros=['NDEBUG'],
                                 define_macros=defines)
 
 class my_build_ext(build_ext.build_ext):
